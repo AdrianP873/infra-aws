@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  VpcCidr:
+    Type: String
+    Default: 192.168.0.0/16
+
+  PublicSubnet1CIDR:
+    Description: CIDR notation for subnet IP range.
+    Type: String
+    Default: 192.168.1.0/24
+
+  PublicSubnet2CIDR:
+    Description: CIDR notation for subnet IP range.
+    Type: String
+    Default: 192.168.2.0/24
+
+  PrivateSubnet1CIDR:
+    Description: CIDR notation for subnet IP range.
+    Type: String
+    Default: 192.168.11.0/24
+
+  EnvironmentName:
+    Type: String
+    Description: Name of the environment which will be prefixed to all resources.
+
+Resources:
+  devVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsHostnames: True
+      EnableDnsSupport: True
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName
+
+  publicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      CidrBlock: !Ref PublicSubnet1CIDR
+      MapPublicIpOnLaunch: True
+      VpcId: !Ref devVpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-PublicSubnet1
+
+  publicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref PublicSubnet2CIDR
+      MapPublicIpOnLaunch: True
+      VpcId: !Ref devVpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-PublicSubnet2
+
+  privateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 2, !GetAZs  '' ]
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      MapPublicIpOnLaunch: False
+      VpcId: !Ref devVpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-PrivateSubnet1
+
+  devInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-IGW
+
+  igwAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref devInternetGateway
+      VpcId: !Ref devVpc
+
+  natGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt natGatewayEIP.AllocationId
+      SubnetId: !Ref publicSubnet1
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-NatGW
+    DependsOn: natGatewayEIP
+
+  natGatewayEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
