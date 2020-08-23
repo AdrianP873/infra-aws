@@ -96,3 +96,53 @@ Resources:
     Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
+
+  publicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref devVpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-PublicRouteTable
+
+  publicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref publicRouteTable
+      SubnetId: !Ref publicSubnet1
+
+  publicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref publicRouteTable
+      SubnetId: !Ref publicSubnet2
+
+  publicRouteDefault:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref publicRouteTable
+      GatewayId: !Ref devInternetGateway
+    DependsOn: publicRouteTable
+
+  privateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref devVpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-PrivateRouteTable
+
+  privateSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:  !Ref privateRouteTable
+      SubnetId: !Ref privateSubnet1
+
+  privateRouteDefault:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref privateRouteTable
+      NatGatewayId: !Ref natGateway
+    DependsOn: privateRouteTable
