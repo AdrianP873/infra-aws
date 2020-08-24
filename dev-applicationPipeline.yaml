@@ -2,19 +2,15 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: This template deploys a fully automated pipeline in AWS CodePipeline. The pipeline contains a source, build and deploy stage. The source stage links to the Github repo containing the application code. The build stage leverages CodeBuild to run unit tests, build a docker image and upload it to ECR. The deploy stage leverages CodeDeploy to deploy the latest docker image to ECS.
 
 Parameters:
-
   CodePipelineServiceRole:
     Type: String
     Description: Name of the service role assumed by CodePipeline.
     Default: rpgApplicationPipelineServiceRole
 
-  ArtifactBucketName:
-    Type: String
-    Default: !Sub ${AWS::StackName}-artifact-bucket
-
   EnvironmentName:
     Type: String
     Description: Name of the environment which will be prefixed to all resources.
+    Default: dev
 
   ApplicationName:
     Type: String
@@ -22,14 +18,26 @@ Parameters:
 
   GitHubUser:
     Type: String
+    Default: adrianp873
 
   GitHubRepo:
     Type: String
     Default: infra-aws
 
+  Branch:
+    Type: String
+    Default: master
+
 Resources:
+  artifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-Bucket
+
   pipelineServiceRole:
-    Type:: AWS::IAM::Role
+    Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -41,9 +49,13 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Description: "Service role assumed by CodePipeline to perform actions."
-      Path: /
+      Path: "/"
       Policies:
-        - PolicyName: !Sub CodePipelineServiceRole-${ApplicationName}-Policy
+        - PolicyName: !Join
+            - ''
+            - - 'CodePipelineServiceRole'
+              - !Sub ${ApplicationName}
+              - 'Policy'
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -64,15 +76,16 @@ Resources:
       RoleName: !Ref CodePipelineServiceRole
 
   applicationPipeline:
-    Type: AWS::CodePipeline::Pipeline:
-      RestartExecutionOnUpdate: false
+    Type: AWS::CodePipeline::Pipeline
+    DependsOn: artifactBucket
     Properties:
       ArtifactStore:
         Type: S3
-        Location: ArtifactBucketName
+        Location: !Ref artifactBucket
       Name: !Sub ${EnvironmentName}-${ApplicationName}-Pipeline
       RestartExecutionOnUpdate: True
       RoleArn: !GetAtt pipelineServiceRole.Arn
+      RestartExecutionOnUpdate: false
       Stages:
         -
           Name: Source
@@ -83,13 +96,29 @@ Resources:
                 Category: Source
                 Owner: ThirdParty
                 Provider: GitHub
+                Version: '1'
               Namespace: Dev
               Configuration:
                 Owner: !Ref GitHubUser
                 Repo: !Ref GitHubRepo
                 Branch: master
-                OAuthToken: {{resolve:secretsmanager:GitHubToken:SecretString:token}}
+                OAuthToken: '{{resolve:secretsmanager:GitHubToken:SecretString:token}}'
                 PollForSourceChanges: false
+              RunOrder: 1
+        -
+          Name: Build
+          Actions:
+            -
+              Name: Build
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Namespace: Dev
+              Configuration:
+                ProjectName: !Sub ${EnvironmentName}-${ApplicationName-Build
+              RunOrder: 1
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName}-${ApplicationName}-Pipeline
