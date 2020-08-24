@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: This template deploys a fully automated pipeline in AWS CodePipeline. The pipeline contains a source, build and deploy stage. The source stage links to the Github repo containing the application code. The build stage leverages CodeBuild to run unit tests, build a docker image and upload it to ECR. The deploy stage leverages CodeDeploy to deploy the latest docker image to ECS.
+
+Parameters:
+
+  CodePipelineServiceRole:
+    Type: String
+    Description: Name of the service role assumed by CodePipeline.
+    Default: rpgApplicationPipelineServiceRole
+
+  ArtifactBucketName:
+    Type: String
+    Default: !Sub ${AWS::StackName}-artifact-bucket
+
+  EnvironmentName:
+    Type: String
+    Description: Name of the environment which will be prefixed to all resources.
+
+  ApplicationName:
+    Type: String
+    Description: Name of the application running through the pipeline.
+
+  GitHubUser:
+    Type: String
+
+  GitHubRepo:
+    Type: String
+    Default: infra-aws
+
+Resources:
+  pipelineServiceRole:
+    Type:: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Description: "Service role assumed by CodePipeline to perform actions."
+      Path: /
+      Policies:
+        - PolicyName: !Sub CodePipelineServiceRole-${ApplicationName}-Policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "codebuild:CreateProject"
+                  - "codebuild:ListCuratedEnvironmentImages"
+                  - "codebuild:BatchGetProjects"
+                  - "codebuild:ListProjects"
+                  - "ecr:ListImages"
+                  - "ecs:ListClusters"
+                  - "ecs:ListServices"
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                  - "s3:CreateBucket"
+                  - "secretsmanager:GetSecretValue"
+                Resource: "*"
+      RoleName: !Ref CodePipelineServiceRole
+
+  applicationPipeline:
+    Type: AWS::CodePipeline::Pipeline:
+      RestartExecutionOnUpdate: false
+    Properties:
+      ArtifactStore:
+        Type: S3
+        Location: ArtifactBucketName
+      Name: !Sub ${EnvironmentName}-${ApplicationName}-Pipeline
+      RestartExecutionOnUpdate: True
+      RoleArn: !GetAtt pipelineServiceRole.Arn
+      Stages:
+        -
+          Name: Source
+          Actions:
+            -
+              Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Provider: GitHub
+              Namespace: Dev
+              Configuration:
+                Owner: !Ref GitHubUser
+                Repo: !Ref GitHubRepo
+                Branch: master
+                OAuthToken: {{resolve:secretsmanager:GitHubToken:SecretString:token}}
+                PollForSourceChanges: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-Pipeline
