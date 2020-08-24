@@ -35,7 +35,7 @@ Resources:
       InstanceTenancy: default
       Tags:
         - Key: Name
-          Value: !Ref EnvironmentName
+          Value: !Ref EnvironmentName-Vpc
 
   publicSubnet1:
     Type: AWS::EC2::Subnet
