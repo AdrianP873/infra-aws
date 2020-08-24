@@ -146,3 +146,29 @@ Resources:
       RouteTableId: !Ref privateRouteTable
       NatGatewayId: !Ref natGateway
     DependsOn: privateRouteTable
+
+
+Outputs:
+  vpcId:
+    Description: VPC output for cross stack referencing. Exports the VPC ID.
+    Value: !Ref devVpc
+    Export:
+      Name: !Sub '${AWS::StackName}-VpcID'
+
+  publicSubnet1:
+    Description: Reference to public subnet in AZ1. Exports the subnet ID.
+    Value: !Ref publicSubnet1
+    Export:
+      Name: !Sub '${AWS::StackName}-publicSubnet1'
+
+  publicSubnet2:
+    Description: Reference to public subnet in AZ2. Exports the subnet ID.
+    Value: !Ref publicSubnet2
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicSubnet2'
+
+  privateSubnet1:
+    Description: Reference to private subnet in AZ. Exports the subnet ID.
+    Value: !Ref privateSubnet1
+    Export:
+      Name: !Sub '${AWS::StackName}-privateSubnet'
